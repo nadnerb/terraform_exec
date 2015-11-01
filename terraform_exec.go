@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"strings"
 	"github.com/codegangsta/cli"
 	"github.com/fatih/color"
 	"github.com/nadnerb/terraform_exec/sync"
@@ -40,6 +41,21 @@ func main() {
 			Name:   "setup",
 			Usage:  "setup initial execute configuration location",
 			Action: CmdSetup,
+		},
+		{
+			Name: "download",
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "config",
+					Usage: "config location, must be format <location>/<environment>.tfvars",
+				},
+				cli.StringFlag{
+					Name:  "projectLocation",
+					Usage: "terraform project location",
+				},
+			},
+			Usage:  "download existing state to s3",
+			Action: CmdDownload,
 		},
 		{
 			Name:   "upload",
@@ -130,10 +146,7 @@ func CmdRun(c *cli.Context) {
 	noSync := c.Bool("no-sync")
 	if noSync {
 		color.Red("SKIPPING s3 download of current state")
-		fmt.Print("Are you sure? (yes)")
-		reader := bufio.NewReader(os.Stdin)
-		text, _ := reader.ReadString('\n')
-		if text == "yes" {
+		if strings.TrimSpace(TextInputAffirmative()) == "yes" {
 			color.Red("Skipped sync")
 		} else {
 
@@ -151,8 +164,7 @@ func CmdRun(c *cli.Context) {
 	fmt.Printf("S3 SYNC new changes\n")
 }
 
-// SETUP
-
+// SETUP, don't think we need it
 func CmdSetup(c *cli.Context) {
 	if len(c.Args()) != 1 {
 		fmt.Printf("Incorrect usage\n")
@@ -173,11 +185,60 @@ func CmdSetup(c *cli.Context) {
 }
 
 func CmdUpload(c *cli.Context) {
-	if len(c.Args()) != 1 {
+	if len(c.Args()) != 2 {
 		fmt.Printf("Incorrect usage\n")
+		fmt.Printf("upload <environment> <project>\n")
 		return
 	}
-	fmt.Printf("Upload current project state to s3")
+	fmt.Println()
+	environment := c.Args()[0]
+	project := c.Args()[1]
+	config := LoadConfig(Config(c.String("config")), environment)
+
+	fmt.Printf("Upload current project state to s3\n")
+
+	if strings.TrimSpace(TextInputAffirmative()) == "yes" {
+		projectState := fmt.Sprintf("%s/tfstate/%s/terraform.tfstate", project, environment)
+		fmt.Printf("%s/%s\n", config.S3_bucket, projectState)
+		sync.Upload(&sync.AwsConfig{S3_bucket: config.S3_bucket, S3_key: projectState, Filename: projectState, Region: config.Region})
+		color.Green("Uploaded")
+	} else {
+		color.Red("Aborted")
+	}
+}
+
+func CmdDownload(c *cli.Context) {
+	if len(c.Args()) != 2 {
+		fmt.Printf("Incorrect usage\n")
+		fmt.Printf("download <environment> <project>\n")
+		return
+	}
+	fmt.Println()
+	environment := c.Args()[0]
+	project := c.Args()[1]
+	config := LoadConfig(Config(c.String("config")), environment)
+
+	fmt.Printf("Download current project state from s3\n")
+	projectState := fmt.Sprintf("%s/tfstate/%s/terraform.tfstate", project, environment)
+	fmt.Printf("%s/%s\n", config.S3_bucket, projectState)
+	sync.Download(&sync.AwsConfig{S3_bucket: config.S3_bucket, S3_key: projectState, Filename: projectState, Region: config.Region})
+}
+
+func TextInputAffirmative() string {
+	fmt.Print("Are you sure? (yes)\n")
+	reader := bufio.NewReader(os.Stdin)
+	text, _ := reader.ReadString('\n')
+	return text
+}
+
+func LoadConfig(config string, environment string) *sync.AwsConfig {
+	awsConfig, err := sync.LoadAwsConfig(fmt.Sprintf("%s/%s.tfvars", config, environment))
+	if err != nil {
+		Error("Error", err)
+	}
+	fmt.Println("s3 bucket: ", awsConfig.S3_bucket)
+	fmt.Println("ssh key: ", awsConfig.Key_path)
+	return awsConfig
 }
 
 func Error(errorMessage string, error error) {
@@ -188,4 +249,25 @@ func Error(errorMessage string, error error) {
 	fmt.Println("---------------------------------------------")
 	fmt.Println()
 	os.Exit(1)
+}
+
+func Config(config string) string {
+	if len(config) > 0 {
+		fmt.Printf("Using config location: %s\n", cyan(config))
+		if _, err := os.Stat(config); os.IsNotExist(err) {
+			Error("Directory does not exist", err)
+		}
+		return config
+	} else {
+		return DefaultConfig()
+	}
+}
+
+func DefaultConfig() string {
+	defaultConfig, _ := filepath.Abs("./config/")
+	fmt.Printf("Using default config location: %s\n", cyan(defaultConfig))
+	if _, err := os.Stat(defaultConfig); os.IsNotExist(err) {
+		Error("Directory does not exist", err)
+	}
+	return defaultConfig
 }

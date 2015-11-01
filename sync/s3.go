@@ -3,6 +3,7 @@ package sync
 import (
 	"fmt"
 	"io/ioutil"
+
 	"github.com/hashicorp/hcl"
 )
 
@@ -28,7 +29,9 @@ func ReadFile(path string) string {
 
 type AwsConfig struct {
 	S3_bucket string
+	S3_key string
 	Region string
-	Ssh_key string
+	Key_path string
+	Filename string
 }
 
