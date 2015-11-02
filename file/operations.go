@@ -1,4 +1,4 @@
-package util
+package file
 
 import (
 	"path/filepath"
@@ -7,7 +7,7 @@ import (
 )
 
 // I am guessing/hoping there is a nicer way to do this
-func HasFilesWithExtension(directory string, extension string) (bool, error) {
+func DirectoryContainsWithExtension(directory string, extension string) (bool, error) {
 	dirname := directory + string(filepath.Separator)
 
 	d, err := os.Open(dirname)

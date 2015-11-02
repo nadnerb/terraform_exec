@@ -2,19 +2,23 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"errors"
 	"fmt"
-	"strings"
-	"github.com/codegangsta/cli"
-	"github.com/fatih/color"
-	"github.com/nadnerb/terraform_exec/sync"
-	"github.com/nadnerb/terraform_exec/util"
 	"os"
 	"path/filepath"
+
+	"github.com/codegangsta/cli"
+	"github.com/fatih/color"
+	"github.com/nadnerb/terraform_exec/command"
+	"github.com/nadnerb/terraform_exec/file"
+	"github.com/nadnerb/terraform_exec/sync"
 )
 
 // REQUEST: curl http://169.254.169.254/latest/meta-data/iam/security-credentials/ROLE
 
 var cyan = color.New(color.FgCyan).SprintFunc()
+var bold = color.New(color.FgWhite, color.Bold).SprintFunc()
 var green = color.New(color.FgGreen).SprintFunc()
 var red = color.New(color.FgRed).SprintFunc()
 
@@ -22,7 +26,7 @@ func main() {
 
 	app := cli.NewApp()
 	app.Name = "Terraform exec"
-	app.Usage = "Execute terraform commands across environments maintaining state in s3\nExpects layout build/<project>\nExpects layout config/<project>"
+	app.Usage = "Execute terraform commands across environments maintaining state in s3\nDefault project layout\n./<project>\n./config/<environment>"
 
 	app.Flags = []cli.Flag{
 		cli.BoolFlag{
@@ -38,31 +42,6 @@ func main() {
 	// Commands
 	app.Commands = []cli.Command{
 		{
-			Name:   "setup",
-			Usage:  "setup initial execute configuration location",
-			Action: CmdSetup,
-		},
-		{
-			Name: "download",
-			Flags: []cli.Flag{
-				cli.StringFlag{
-					Name:  "config",
-					Usage: "config location, must be format <location>/<environment>.tfvars",
-				},
-				cli.StringFlag{
-					Name:  "projectLocation",
-					Usage: "terraform project location",
-				},
-			},
-			Usage:  "download existing state to s3",
-			Action: CmdDownload,
-		},
-		{
-			Name:   "upload",
-			Usage:  "upload existing state to s3",
-			Action: CmdUpload,
-		},
-		{
 			Name: "run",
 			Flags: []cli.Flag{
 				cli.BoolFlag{
@@ -70,158 +49,172 @@ func main() {
 					Usage: "Don't perform initial s3 sync",
 				},
 				cli.StringFlag{
-					Name: "config",
-					//Usage: "config location, must be format <location>/<project>?/<environment>.tfvars",
+					Name: "config-location",
 					Usage: "config location, must be format <location>/<environment>.tfvars",
-				},
-				cli.StringFlag{
-					Name:  "projectLocation",
-					Usage: "terraform project location",
 				},
 			},
 			Usage:  "Run a terraform command (plan|apply|destroy|refresh)",
 			Action: CmdRun,
 		},
+		{
+			Name: "download",
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "config-location",
+					Usage: "config location, must be format <location>/<environment>.tfvars",
+				},
+			},
+			Usage:  "download existing state to s3",
+			Action: CmdDownload,
+		},
+		{
+			Name:   "upload",
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "config-location",
+					Usage: "config location, must be format <location>/<environment>.tfvars",
+				},
+			},
+			Usage:  "upload existing state to s3",
+			Action: CmdUpload,
+		},
 	}
 	app.Run(os.Args)
+}
 
+var terraformCommands = map[string]bool {
+    "plan": false,
+    "apply": true,
+    "refresh": true,
+    "destroy": true,
 }
 
 func CmdRun(c *cli.Context) {
 	if len(c.Args()) != 2 {
 		fmt.Printf("Incorrect usage\n")
-		fmt.Printf("<terraform command> <environment>\n")
-		return
+		fmt.Printf("run <terraform command> <environment>\n")
+		os.Exit(1)
 	}
 
-	fmt.Println()
-	command := c.Args()[0]
+	terraformCommand := c.Args()[0]
+	if _, ok := terraformCommands[terraformCommand]; !ok {
+		fmt.Printf("Incorrect usage\n")
+		var buffer bytes.Buffer
+		buffer.WriteString("Valid commands: ")
+		for key := range terraformCommands {
+			buffer.WriteString(fmt.Sprintf("%s ", key))
+		}
+		command.Error("Incorrect run command", errors.New(buffer.String()))
+	}
 	environment := c.Args()[1]
-
-	e := c.Bool("e")
-	if e {
-		fmt.Printf("*****************************")
-		fmt.Printf("Using environment settings %s", cyan(e))
-	}
-	env := c.Bool("env")
-	if e {
-		fmt.Printf("*****************************")
-		fmt.Printf("Using environment settings %s", cyan(env))
-	}
-
-	config := c.String("config")
-	if len(config) > 0 {
-		fmt.Printf("Using config location: %s\n", cyan(config))
-	} else {
-		config := fmt.Sprintf(".%sconfig", filepath.Separator)
-		fmt.Printf("Using default config location: %s\n", cyan(config))
-	}
-	if _, err := os.Stat(config); os.IsNotExist(err) {
-		Error("Directory does not exist", err)
-	}
-
-	projectLocation := c.String("projectLocation")
-	if len(projectLocation) > 0 {
-		fmt.Printf("Using project location: %s\n", cyan(projectLocation))
-		os.Chdir(projectLocation)
-	} else {
-		projectLocation := "."
-		fmt.Printf("Using default project location: %s\n", cyan(projectLocation))
-	}
-	hasTfFiles, err := util.HasFilesWithExtension(projectLocation, "tf")
-	if err != nil && !hasTfFiles {
-		Error("No terraform files exist", err)
-	}
-
-	fmt.Printf("Using terraform config: %s/%s.tfvars\n", config, environment)
 	fmt.Println()
-	awsConfigValues, err := sync.LoadAwsConfig(fmt.Sprintf("%s/%s.tfvars", config, environment))
-	if err != nil {
-		Error("Error", err)
-	} else {
-		fmt.Println("s3 Bucket: ", awsConfigValues.S3_bucket)
-	}
+	fmt.Println("Run Terraform command")
+	fmt.Println("Command:    ", bold(terraformCommand))
+	fmt.Println("Environment:", bold(environment))
+	fmt.Println()
 
-	fmt.Println("---------------------------------------------")
+	configLocation := c.String("config-location")
+	config := LoadConfig(Config(configLocation), environment)
+
 	noSync := c.Bool("no-sync")
 	if noSync {
 		color.Red("SKIPPING s3 download of current state")
-		if strings.TrimSpace(TextInputAffirmative()) == "yes" {
+		if command.InputAffirmative() {
 			color.Red("Skipped sync")
 		} else {
-
+			DownloadState(config, environment)
 		}
 	} else {
-		fmt.Printf("S3 sync\n")
-		fmt.Sprintf("Syncing tfstate/%s.tfstate", environment)
-		fmt.Printf("...\n")
+		DownloadState(config, environment)
 	}
+
+	tfVars := TerraformVars(configLocation, environment)
+	tfState := TerraformState(environment)
+
+	// use golang terraform so we don't have to install separately ?
+	fmt.Printf("terraform %s -var-file %s -state=%s\n", terraformCommand, tfVars, tfState)
+	cmdName := "terraform"
+	cmdArgs := []string{ terraformCommand, "-var-file", tfVars, fmt.Sprintf("-state=%s", tfState) }
+	command.Execute(cmdName, cmdArgs)
+
 	fmt.Println("---------------------------------------------")
-
-	fmt.Printf("terraform %s -var-file %s/%s.tfvars -state=%s/tfstate/%s/terraform.tfstate\n", command, config, environment, projectLocation, environment)
-
-	fmt.Println("---------------------------------------------")
-	fmt.Printf("S3 SYNC new changes\n")
-}
-
-// SETUP, don't think we need it
-func CmdSetup(c *cli.Context) {
-	if len(c.Args()) != 1 {
-		fmt.Printf("Incorrect usage\n")
-		fmt.Printf("<config location>\n")
-		return
+	if terraformCommands[terraformCommand] {
+		fmt.Printf("S3 SYNC new changes\n")
+		UploadState(config, environment)
 	}
-	f, e := os.Create(".terraform.cfg")
-	if e != nil {
-		panic(e)
-	}
-	configLocation := c.Args()[0]
-	foo, e := f.WriteString(fmt.Sprintf("%s\n", configLocation))
-	if e != nil {
-		panic(e)
-	}
-	fmt.Printf("wrote %d bytes\n", foo)
-	f.Sync()
 }
 
 func CmdUpload(c *cli.Context) {
-	if len(c.Args()) != 2 {
+	if len(c.Args()) != 1 {
 		fmt.Printf("Incorrect usage\n")
-		fmt.Printf("upload <environment> <project>\n")
+		fmt.Printf("upload <environment>\n")
 		return
 	}
 	fmt.Println()
 	environment := c.Args()[0]
-	project := c.Args()[1]
-	config := LoadConfig(Config(c.String("config")), environment)
+	config := LoadConfig(Config(c.String("config-location")), environment)
+	//ProjectLocation(c.String("project-location"))
 
+	fmt.Println()
+	fmt.Println("Upload Terraform state")
+	fmt.Println("Environment:", bold(environment))
+	fmt.Println()
 	fmt.Printf("Upload current project state to s3\n")
 
-	if strings.TrimSpace(TextInputAffirmative()) == "yes" {
-		projectState := fmt.Sprintf("%s/tfstate/%s/terraform.tfstate", project, environment)
-		fmt.Printf("%s/%s\n", config.S3_bucket, projectState)
-		sync.Upload(&sync.AwsConfig{S3_bucket: config.S3_bucket, S3_key: projectState, Filename: projectState, Region: config.Region})
-		color.Green("Uploaded")
+	if command.InputAffirmative() {
+		UploadState(config, environment)
 	} else {
 		color.Red("Aborted")
 	}
 }
 
+func UploadState(config *sync.AwsConfig, environment string) {
+	tfState := TerraformState(environment)
+	s3Key := S3Key(config.S3_key, environment)
+	fmt.Printf("Uploading project state: %s to: %s/%s\n", green(tfState), green(config.S3_bucket), green(s3Key))
+
+	err := sync.Upload(config.Aws_region, config.S3_bucket, s3Key, tfState)
+	fmt.Println()
+	if err != nil {
+		command.Error("Failed to upload", err)
+	} else {
+		color.Green("Uploaded successfully to S3")
+		fmt.Println()
+	}
+}
+
 func CmdDownload(c *cli.Context) {
-	if len(c.Args()) != 2 {
+	if len(c.Args()) != 1 {
 		fmt.Printf("Incorrect usage\n")
-		fmt.Printf("download <environment> <project>\n")
+		fmt.Printf("download <environment>\n")
 		return
 	}
-	fmt.Println()
 	environment := c.Args()[0]
-	project := c.Args()[1]
-	config := LoadConfig(Config(c.String("config")), environment)
+	fmt.Println()
+	fmt.Println("Download Terraform state")
+	fmt.Println("Environment:", bold(environment))
+	fmt.Println()
+	config := LoadConfig(Config(c.String("config-location")), environment)
+	DownloadState(config, environment)
+}
 
-	fmt.Printf("Download current project state from s3\n")
-	projectState := fmt.Sprintf("%s/tfstate/%s/terraform.tfstate", project, environment)
-	fmt.Printf("%s/%s\n", config.S3_bucket, projectState)
-	sync.Download(&sync.AwsConfig{S3_bucket: config.S3_bucket, S3_key: projectState, Filename: projectState, Region: config.Region})
+func DownloadState(config *sync.AwsConfig, environment string) {
+
+	fmt.Println("Syncing project state with S3")
+
+	tfState := TerraformState(environment)
+	s3Key := S3Key(config.S3_key, environment)
+	fmt.Printf("Downloading project state: %s/%s to: %s\n", cyan(config.S3_bucket), cyan(s3Key), cyan(tfState))
+
+	err := sync.Download(config.Aws_region, config.S3_bucket, s3Key, tfState)
+	fmt.Println()
+	if err != nil {
+		command.Warn("Failed to download", err)
+	} else {
+		color.Green("Downloaded successfully from S3")
+		fmt.Println()
+	}
+	//sync.Download(&sync.AwsConfig{S3_bucket: config.S3_bucket, S3_key: projectState, Region: config.Region}, fmt.Sprintf("./tfstate/%s/terraform.tfstate")
 }
 
 func TextInputAffirmative() string {
@@ -231,43 +224,30 @@ func TextInputAffirmative() string {
 	return text
 }
 
-func LoadConfig(config string, environment string) *sync.AwsConfig {
-	awsConfig, err := sync.LoadAwsConfig(fmt.Sprintf("%s/%s.tfvars", config, environment))
-	if err != nil {
-		Error("Error", err)
-	}
-	fmt.Println("s3 bucket: ", awsConfig.S3_bucket)
-	fmt.Println("ssh key: ", awsConfig.Key_path)
-	return awsConfig
+func TerraformVars(configLocation string, environment string) string {
+	return filepath.Clean(fmt.Sprintf("%s/%s.tfvars", configLocation, environment))
 }
 
-func Error(errorMessage string, error error) {
-	fmt.Println()
-	fmt.Println("---------------------------------------------")
-	fmt.Fprintf(os.Stderr, "ERROR\n")
-	fmt.Fprintf(os.Stderr, "%s: %s\n", cyan(errorMessage), red(error))
-	fmt.Println("---------------------------------------------")
-	fmt.Println()
-	os.Exit(1)
+func TerraformState(environment string) string {
+	return fmt.Sprintf("./tfstate/%s/terraform.tfstate", environment)
 }
 
-func Config(config string) string {
-	if len(config) > 0 {
-		fmt.Printf("Using config location: %s\n", cyan(config))
-		if _, err := os.Stat(config); os.IsNotExist(err) {
-			Error("Directory does not exist", err)
-		}
-		return config
+func S3Key(keyName string, environment string) string {
+	return fmt.Sprintf("%s/tfstate/%s/terraform.tfstate", keyName, environment)
+}
+
+
+// DO WE NEED THIS? destroy plz
+func ProjectLocation(projectLocation string) {
+	if len(projectLocation) > 0 {
+		fmt.Printf("Using project location: %s\n", cyan(projectLocation))
+		os.Chdir(projectLocation)
 	} else {
-		return DefaultConfig()
+		projectLocation := "."
+		fmt.Printf("Using default project location: %s\n", cyan(projectLocation))
 	}
-}
-
-func DefaultConfig() string {
-	defaultConfig, _ := filepath.Abs("./config/")
-	fmt.Printf("Using default config location: %s\n", cyan(defaultConfig))
-	if _, err := os.Stat(defaultConfig); os.IsNotExist(err) {
-		Error("Directory does not exist", err)
+	hasTfFiles, err := file.DirectoryContainsWithExtension(projectLocation, "tf")
+	if err != nil && !hasTfFiles {
+		command.Error("No terraform files exist", err)
 	}
-	return defaultConfig
 }

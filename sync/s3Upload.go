@@ -1,36 +1,50 @@
 package sync
 
 import (
+	"bytes"
+	"net/http"
 	"log"
-	"strings"
+	"os"
 
 	"github.com/aws/aws-sdk-go/aws"
+	//"github.com/aws/aws-sdk-go/aws/awsutil"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
-func Upload(config *AwsConfig) {
+func Upload(region string, bucket string, key string, filename string) error {
 
-	session := session.New(&aws.Config{Region: aws.String(config.Region)})
+	session := session.New(&aws.Config{Region: aws.String(region)})
 	client := s3.New(session)
-	//result, err := client.CreateBucket(&s3.CreateBucketInput{
-		//Bucket: &bucket,
-	//})
-	//if err != nil {
-		//log.Println("Failed to create bucket", err)
-		//return
-	//}
 
-	_, err := client.PutObject(&s3.PutObjectInput{
-		Body:   strings.NewReader("Hello!"),
-		Bucket: &config.S3_bucket,
-		Key:    &config.S3_key,
+	file, err := os.Open(filename)
+
+	if err != nil {
+		log.Fatal("error opening file\n", err)
+		os.Exit(1)
+	}
+	defer file.Close()
+	fileInfo, _ := file.Stat()
+	var size int64 = fileInfo.Size()
+
+	buffer := make([]byte, size)
+	file.Read(buffer)
+	fileBytes := bytes.NewReader(buffer) // convert to io.ReadSeeker type
+	fileType := http.DetectContentType(buffer)
+
+	_, err = client.PutObject(&s3.PutObjectInput{
+		Body:   fileBytes,
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+		ContentLength: aws.Int64(size),
+		ContentType:   aws.String(fileType),
 	})
 	if err != nil {
-		log.Printf("Failed to upload data to %s/%s, %s\n", config.S3_bucket, config.S3_key, err)
-		return
+		log.Printf("Failed to upload data to %s/%s, %s\n", bucket, key, err)
+		return err
 	}
 
-	log.Printf("Successfully created bucket %s and uploaded data with key %s\n", config.S3_bucket, config.S3_key);
+	//log.Println(awsutil.StringValue(result))
+	return nil
 }
 
