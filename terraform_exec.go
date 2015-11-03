@@ -12,6 +12,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/nadnerb/terraform_exec/command"
 	"github.com/nadnerb/terraform_exec/file"
+	"github.com/nadnerb/terraform_exec/security"
 	"github.com/nadnerb/terraform_exec/sync"
 )
 
@@ -47,6 +48,14 @@ func main() {
 				cli.BoolFlag{
 					Name:  "no-sync",
 					Usage: "Don't perform initial s3 sync",
+				},
+				cli.StringFlag{
+					Name: "security",
+					Usage: "security provider, current options <default>, <aws-internal>",
+				},
+				cli.StringFlag{
+					Name: "security-role",
+					Usage: "security iam role if using -security=aws-internal security",
 				},
 				cli.StringFlag{
 					Name: "config-location",
@@ -95,18 +104,14 @@ func CmdRun(c *cli.Context) {
 		fmt.Printf("run <terraform command> <environment>\n")
 		os.Exit(1)
 	}
+	IsTerraformProject()
 
 	terraformCommand := c.Args()[0]
-	if _, ok := terraformCommands[terraformCommand]; !ok {
-		fmt.Printf("Incorrect usage\n")
-		var buffer bytes.Buffer
-		buffer.WriteString("Valid commands: ")
-		for key := range terraformCommands {
-			buffer.WriteString(fmt.Sprintf("%s ", key))
-		}
-		command.Error("Incorrect run command", errors.New(buffer.String()))
-	}
 	environment := c.Args()[1]
+
+	security.Apply(c.String("security"), c)
+	IsSupportedTerraformCommand(terraformCommand)
+
 	fmt.Println()
 	fmt.Println("Run Terraform command")
 	fmt.Println("Command:    ", bold(terraformCommand))
@@ -116,11 +121,10 @@ func CmdRun(c *cli.Context) {
 	configLocation := c.String("config-location")
 	config := LoadConfig(Config(configLocation), environment)
 
-	noSync := c.Bool("no-sync")
-	if noSync {
-		color.Red("SKIPPING s3 download of current state")
+	if c.Bool("no-sync") {
+		color.Red("SKIPPING S3 download of current state")
 		if command.InputAffirmative() {
-			color.Red("Skipped sync")
+			color.Red("Skipped syncing with S3")
 		} else {
 			DownloadState(config, environment)
 		}
@@ -131,8 +135,10 @@ func CmdRun(c *cli.Context) {
 	tfVars := TerraformVars(configLocation, environment)
 	tfState := TerraformState(environment)
 
-	// use golang terraform so we don't have to install separately ?
+	// It would be great to use golang terraform so we don't have to install it separately
+	// I think we would need to use "github.com/mitchellh/cli" instead of current cli
 	fmt.Printf("terraform %s -var-file %s -state=%s\n", terraformCommand, tfVars, tfState)
+	fmt.Println("---------------------------------------------")
 	cmdName := "terraform"
 	cmdArgs := []string{ terraformCommand, "-var-file", tfVars, fmt.Sprintf("-state=%s", tfState) }
 	command.Execute(cmdName, cmdArgs)
@@ -236,18 +242,21 @@ func S3Key(keyName string, environment string) string {
 	return fmt.Sprintf("%s/tfstate/%s/terraform.tfstate", keyName, environment)
 }
 
-
-// DO WE NEED THIS? destroy plz
-func ProjectLocation(projectLocation string) {
-	if len(projectLocation) > 0 {
-		fmt.Printf("Using project location: %s\n", cyan(projectLocation))
-		os.Chdir(projectLocation)
-	} else {
-		projectLocation := "."
-		fmt.Printf("Using default project location: %s\n", cyan(projectLocation))
-	}
-	hasTfFiles, err := file.DirectoryContainsWithExtension(projectLocation, "tf")
+func IsTerraformProject() {
+	hasTfFiles, err := file.DirectoryContainsWithExtension(".", ".tf")
 	if err != nil && !hasTfFiles {
 		command.Error("No terraform files exist", err)
+	}
+}
+
+func IsSupportedTerraformCommand(terraformCommand string) {
+	if _, ok := terraformCommands[terraformCommand]; !ok {
+		fmt.Printf("Incorrect usage\n")
+		var buffer bytes.Buffer
+		buffer.WriteString("Valid commands: ")
+		for key := range terraformCommands {
+			buffer.WriteString(fmt.Sprintf("%s ", key))
+		}
+		command.Error("Incorrect run command", errors.New(buffer.String()))
 	}
 }

@@ -5,16 +5,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func ExpectsToHaveFilesWithExtension(t *testing.T) {
-	has, err := HasFilesWithExtension("../fixtures/some.tfvars", "txt")
+func TestExpectsToHaveFilesWithExtension(t *testing.T) {
+	hasTxtFiles, err := DirectoryContainsWithExtension("../fixtures", ".txt")
 
 	assert.Nil(t, err)
-	assert.Equal(t, has, true, "should contain text files")
+	assert.True(t, hasTxtFiles, "should contain text files")
 }
 
-func ExpectsToNotHaveFilesWithExtension(t *testing.T) {
-	has, err := HasFilesWithExtension("../fixtures/some.tfvars", "foo")
+func TestExpectsToNotHaveFilesWithExtension(t *testing.T) {
+	hasFooFiles, err := DirectoryContainsWithExtension("../fixtures", ".foo")
 
 	assert.Nil(t, err)
-	assert.Equal(t, has, false, "should contain foo files")
+	assert.False(t, hasFooFiles, "should not contain foo files")
 }

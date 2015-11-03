@@ -6,7 +6,7 @@ import (
 	"os"
 )
 
-// I am guessing/hoping there is a nicer way to do this
+// I am guessing there is a nicer way to do this
 func DirectoryContainsWithExtension(directory string, extension string) (bool, error) {
 	dirname := directory + string(filepath.Separator)
 

@@ -3,9 +3,10 @@ package command
 import (
 	"bufio"
 	"fmt"
-	"github.com/fatih/color"
 	"os/exec"
 	"regexp"
+
+	"github.com/fatih/color"
 )
 
 func Execute(cmdName string, cmdArgs []string) {
