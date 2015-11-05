@@ -139,6 +139,7 @@ func CmdRun(c *cli.Context) {
 	// I think we would need to use "github.com/mitchellh/cli" instead of current cli
 	fmt.Printf("terraform %s -var-file %s -state=%s\n", terraformCommand, tfVars, tfState)
 	fmt.Println("---------------------------------------------")
+	fmt.Println()
 	cmdName := "terraform"
 	cmdArgs := []string{ terraformCommand, "-var-file", tfVars, fmt.Sprintf("-state=%s", tfState) }
 	command.Execute(cmdName, cmdArgs)

@@ -13,13 +13,25 @@ func Execute(cmdName string, cmdArgs []string) {
 	cmd := exec.Command(cmdName, cmdArgs...)
 	cmdReader, err := cmd.StdoutPipe()
 	if err != nil {
-		Error("Error creating StdoutPip for Cmd", err)
+		Error("Error creating StdoutPipe for Cmd", err)
+	}
+
+	cmdErrorReader, err := cmd.StderrPipe()
+	if err != nil {
+		Error("Error creating StderrPipe for Cmd", err)
 	}
 
 	scanner := bufio.NewScanner(cmdReader)
 	go func() {
 		for scanner.Scan() {
 			Write(scanner.Text())
+		}
+	}()
+
+	errorScanner := bufio.NewScanner(cmdErrorReader)
+	go func() {
+		for errorScanner.Scan() {
+			Write(errorScanner.Text())
 		}
 	}()
 
