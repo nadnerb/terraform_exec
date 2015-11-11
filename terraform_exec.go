@@ -139,18 +139,22 @@ func CmdRun(c *cli.Context) {
 
 	tfVars := TerraformVars(configLocation, environment)
 	tfState := TerraformState(environment)
+	terraformActions := terraformCommands[terraformCommand]
 
 	// It would be great to use golang terraform so we don't have to install it separately
 	// I think we would need to use "github.com/mitchellh/cli" instead of current cli
-	fmt.Printf("terraform %s -var-file %s -state=%s %s\n", terraformCommand, tfVars, tfState, terraformCommands[terraformCommand].extraArgs)
+	fmt.Printf("terraform %s -var-file %s -state=%s %s\n", terraformCommand, tfVars, tfState, terraformActions.extraArgs)
 	fmt.Println("---------------------------------------------")
 	fmt.Println()
 	cmdName := "terraform"
-	cmdArgs := []string{ terraformCommand, "-var-file", tfVars, fmt.Sprintf("-state=%s", tfState), terraformCommands[terraformCommand].extraArgs }
+	cmdArgs := []string{ terraformCommand, "-var-file", tfVars, fmt.Sprintf("-state=%s", tfState) }
+	if terraformActions.extraArgs != "" {
+		cmdArgs = append(cmdArgs, terraformActions.extraArgs)
+	}
 	command.Execute(cmdName, cmdArgs)
 
 	fmt.Println("---------------------------------------------")
-	if terraformCommands[terraformCommand].sync {
+	if terraformActions.sync {
 		fmt.Printf("S3 SYNC new changes\n")
 		UploadState(config, environment)
 	}
