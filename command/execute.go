@@ -42,7 +42,7 @@ func Execute(cmdName string, cmdArgs []string) {
 
 	err = cmd.Wait()
 	if err != nil {
-		Error("Error waiting for Cmd", err)
+		Warn("Error waiting for Cmd", err)
 	}
 }
 
