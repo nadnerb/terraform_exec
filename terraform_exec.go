@@ -6,17 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/codegangsta/cli"
 	"github.com/fatih/color"
-	"github.com/nadnerb/terraform_exec/command"
+	"github.com/nadnerb/cli_command"
+	"github.com/nadnerb/terraform_config"
 	"github.com/nadnerb/terraform_exec/file"
 	"github.com/nadnerb/terraform_exec/security"
 	"github.com/nadnerb/terraform_exec/sync"
 )
-
-// REQUEST: curl http://169.254.169.254/latest/meta-data/iam/security-credentials/ROLE
 
 var cyan = color.New(color.FgCyan).SprintFunc()
 var bold = color.New(color.FgWhite, color.Bold).SprintFunc()
@@ -124,12 +122,12 @@ func CmdRun(c *cli.Context) {
 	fmt.Println()
 
 	configLocation := c.String("config-location")
-	config := LoadConfig(Config(configLocation), environment)
+	config := terraform_config.LoadConfig(c.String("config-location"), environment)
 
 	if c.Bool("no-sync") {
-		color.Red("SKIPPING S3 download of current state")
+		red("SKIPPING S3 download of current state")
 		if command.InputAffirmative() {
-			color.Red("Skipped syncing with S3")
+			red("Skipped syncing with S3")
 		} else {
 			DownloadState(config, environment)
 		}
@@ -137,8 +135,8 @@ func CmdRun(c *cli.Context) {
 		DownloadState(config, environment)
 	}
 
-	tfVars := TerraformVars(configLocation, environment)
-	tfState := TerraformState(environment)
+	tfVars := terraform_config.TerraformVars(configLocation, environment)
+	tfState := terraform_config.TerraformState(environment)
 	terraformActions := terraformCommands[terraformCommand]
 
 	// It would be great to use golang terraform so we don't have to install it separately
@@ -168,8 +166,7 @@ func CmdUpload(c *cli.Context) {
 	}
 	fmt.Println()
 	environment := c.Args()[0]
-	config := LoadConfig(Config(c.String("config-location")), environment)
-	//ProjectLocation(c.String("project-location"))
+	config := terraform_config.LoadConfig(c.String("config-location"), environment)
 
 	fmt.Println()
 	fmt.Println("Upload Terraform state")
@@ -184,8 +181,8 @@ func CmdUpload(c *cli.Context) {
 	}
 }
 
-func UploadState(config *sync.AwsConfig, environment string) {
-	tfState := TerraformState(environment)
+func UploadState(config *terraform_config.AwsConfig, environment string) {
+	tfState := terraform_config.TerraformState(environment)
 	s3Key := S3Key(config.S3_key, environment)
 	fmt.Printf("Uploading project state: %s to: %s/%s\n", green(tfState), green(config.S3_bucket), green(s3Key))
 
@@ -210,15 +207,15 @@ func CmdDownload(c *cli.Context) {
 	fmt.Println("Download Terraform state")
 	fmt.Println("Environment:", bold(environment))
 	fmt.Println()
-	config := LoadConfig(Config(c.String("config-location")), environment)
+	config := terraform_config.LoadConfig(c.String("config-location"), environment)
 	DownloadState(config, environment)
 }
 
-func DownloadState(config *sync.AwsConfig, environment string) {
+func DownloadState(config *terraform_config.AwsConfig, environment string) {
 
 	fmt.Println("Syncing project state with S3")
 
-	tfState := TerraformState(environment)
+	tfState := terraform_config.TerraformState(environment)
 	s3Key := S3Key(config.S3_key, environment)
 	fmt.Printf("Downloading project state: %s/%s to: %s\n", cyan(config.S3_bucket), cyan(s3Key), cyan(tfState))
 
@@ -238,14 +235,6 @@ func TextInputAffirmative() string {
 	reader := bufio.NewReader(os.Stdin)
 	text, _ := reader.ReadString('\n')
 	return text
-}
-
-func TerraformVars(configLocation string, environment string) string {
-	return filepath.Clean(fmt.Sprintf("%s/%s.tfvars", configLocation, environment))
-}
-
-func TerraformState(environment string) string {
-	return fmt.Sprintf("./tfstate/%s/terraform.tfstate", environment)
 }
 
 func S3Key(keyName string, environment string) string {
