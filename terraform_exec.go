@@ -141,7 +141,7 @@ func CmdRun(c *cli.Context) {
 
 	// It would be great to use golang terraform so we don't have to install it separately
 	// I think we would need to use "github.com/mitchellh/cli" instead of current cli
-	fmt.Printf("terraform %s -var-file %s -state=%s %s\n", terraformCommand, tfVars, tfState, terraformActions.extraArgs)
+	fmt.Printf("terraform %s -var-file %s -state=%s -var 'environment=%s' %s\n", terraformCommand, tfVars, tfState, environment, terraformActions.extraArgs)
 	fmt.Println("---------------------------------------------")
 	fmt.Println()
 	cmdName := "terraform"
