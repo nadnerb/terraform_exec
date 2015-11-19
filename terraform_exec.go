@@ -229,7 +229,6 @@ func DownloadState(config *terraform_config.AwsConfig, environment string) {
 		color.Green("Downloaded successfully from S3")
 		fmt.Println()
 	}
-	//sync.Download(&sync.AwsConfig{S3_bucket: config.S3_bucket, S3_key: projectState, Region: config.Region}, fmt.Sprintf("./tfstate/%s/terraform.tfstate")
 }
 
 func S3Key(keyName string, environment string) string {

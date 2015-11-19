@@ -1,9 +1,11 @@
-Terraform exec wrapper
+terraform_exec
 =============
 
-Allows multiple AWS projects and their environments, synced to S3.
+Terraform wrapper that provides multiple AWS projects and their environments, synced to S3.
 
 ## Usage:
+
+First you need to install [terraform](https://terraform.io)
 
 ```
 go get github.com/nadnerb/terraform_exec
@@ -65,7 +67,7 @@ $ go get github.com/stretchr/testify/assert
 
 ### TODO
 
+* use terraform go project (most likely need to change to its cli)
 * improve this readme!!
 * remove unnessessary s3_Key variable
 * only warn for inital sync if new project, fail otherwise
-* use terraform go project (most likely need to change to its cli)
