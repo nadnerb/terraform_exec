@@ -1,11 +1,11 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/codegangsta/cli"
 	"github.com/fatih/color"
@@ -17,7 +17,8 @@ import (
 )
 
 var cyan = color.New(color.FgCyan).SprintFunc()
-var bold = color.New(color.FgWhite, color.Bold).SprintFunc()
+var Bold = color.New(color.FgWhite, color.Bold)
+var bold = Bold.SprintFunc()
 var green = color.New(color.FgGreen).SprintFunc()
 var red = color.New(color.FgRed).SprintFunc()
 
@@ -141,16 +142,17 @@ func CmdRun(c *cli.Context) {
 
 	// It would be great to use golang terraform so we don't have to install it separately
 	// I think we would need to use "github.com/mitchellh/cli" instead of current cli
-	fmt.Printf("terraform %s -var-file %s -state=%s -var 'environment=%s' %s\n", terraformCommand, tfVars, tfState, environment, terraformActions.extraArgs)
-	fmt.Println("---------------------------------------------")
-	fmt.Println()
 	cmdName := "terraform"
-	cmdArgs := []string{ terraformCommand, "-var-file", tfVars, fmt.Sprintf("-state=%s", tfState) }
+	cmdArgs := []string{ terraformCommand, "-var-file", tfVars, fmt.Sprintf("-state=%s", tfState), "-var", fmt.Sprintf("environment=%s", environment) }
 	if terraformActions.extraArgs != "" {
 		cmdArgs = append(cmdArgs, terraformActions.extraArgs)
 	}
-	command.Execute(cmdName, cmdArgs)
-
+	fmt.Println("---------------------------------------------")
+	Bold.Println(cmdName, strings.Join(cmdArgs, " "))
+	fmt.Println("---------------------------------------------")
+	fmt.Println()
+	command.Default().Execute(cmdName, cmdArgs)
+	fmt.Println()
 	fmt.Println("---------------------------------------------")
 	if terraformActions.sync {
 		fmt.Printf("S3 SYNC new changes\n")
@@ -228,13 +230,6 @@ func DownloadState(config *terraform_config.AwsConfig, environment string) {
 		fmt.Println()
 	}
 	//sync.Download(&sync.AwsConfig{S3_bucket: config.S3_bucket, S3_key: projectState, Region: config.Region}, fmt.Sprintf("./tfstate/%s/terraform.tfstate")
-}
-
-func TextInputAffirmative() string {
-	fmt.Print("Are you sure? (yes)\n")
-	reader := bufio.NewReader(os.Stdin)
-	text, _ := reader.ReadString('\n')
-	return text
 }
 
 func S3Key(keyName string, environment string) string {
