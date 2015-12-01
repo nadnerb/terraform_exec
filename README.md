@@ -1,11 +1,15 @@
 terraform_exec
 =============
 
-Terraform wrapper that provides multiple AWS projects and their environments, synced to S3.
+Terraform wrapper that allows terraform projects to have multiple environments, synced to S3.
+
+For example terraform_exec allows a terraform elasticsearch project to have staging and production environments in multiple aws regions.
 
 ## Usage:
 
 First you need to install [terraform](https://terraform.io)
+
+Next install terraform_exec ([golang required](https://golang.org/) and setup)
 
 ```
 go get github.com/nadnerb/terraform_exec
@@ -33,19 +37,32 @@ s3_bucket="a-bucket"
 s3_key="an-s3-key"
 ```
 
-Out of the box, `terraform_exec` will look for AWS credentials in the environment. If running on an ec2 box in AWS, retrieving credentials
-via an IAM role are supported via `terraform_exec run plan staging --security=aws-internal --security-role=your-iam-role`. See
-`terraform_exec run --help` for more details.
+#### AWS security
+
+Out of the box, `terraform_exec` will look for AWS credentials set in environment variables. If running on an ec2 box in AWS, retrieving credentials
+via the machines IAM role are supported:
+
+```
+terraform_exec run plan staging --security=aws-internal --security-role=your-iam-role
+```
+
+Use `terraform_exec run --help` for more details.
+
+#### S3 sync
 
 If for some reason you need to skip the inital sync with s3, the `--no-sync=true` flag can be used.
 
 ### terraform_exec upload
 
-Upload existing state to s3
+Upload existing environment state to s3
+
+See `terraform_exec upload --help` for more details
 
 ### terraform_exec download
 
-Download existing state from s3
+Download existing environment state from s3
+
+See `terraform_exec download --help` for more details
 
 ### Testing terraform_exec
 
