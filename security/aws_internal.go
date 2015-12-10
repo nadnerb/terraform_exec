@@ -42,6 +42,7 @@ func (a *AwsInternalProvider) Apply(c *cli.Context) error {
 
 	SetEnvironmentVariable("AWS_ACCESS_KEY_ID", responseJson["AccessKeyId"])
 	SetEnvironmentVariable("AWS_SECRET_ACCESS_KEY", responseJson["SecretAccessKey"])
+	SetEnvironmentVariable("AWS_SESSION_TOKEN", responseJson["Token"])
 
 	return nil
 }
