@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -42,27 +40,96 @@ func main() {
 	// Commands
 	app.Commands = []cli.Command{
 		{
-			Name: "run",
+			Name: "plan",
 			Flags: []cli.Flag{
 				cli.BoolFlag{
 					Name:  "no-sync",
 					Usage: "Don't perform initial s3 sync",
 				},
 				cli.StringFlag{
-					Name: "security",
+					Name:  "security",
 					Usage: "security provider, current options <default>, <aws-internal>",
 				},
 				cli.StringFlag{
-					Name: "security-role",
+					Name:  "security-role",
 					Usage: "security iam role if using -security=aws-internal security",
 				},
 				cli.StringFlag{
-					Name: "config-location",
+					Name:  "config-location",
 					Usage: "config location, must be format <location>/<environment>.tfvars",
 				},
 			},
-			Usage:  "Run a terraform command (plan|apply|destroy|refresh)",
-			Action: CmdRun,
+			Usage:  "terraform plan",
+			Action: CmdPlan,
+		},
+		{
+			Name: "apply",
+			Flags: []cli.Flag{
+				cli.BoolFlag{
+					Name:  "no-sync",
+					Usage: "Don't perform initial s3 sync",
+				},
+				cli.StringFlag{
+					Name:  "security",
+					Usage: "security provider, current options <default>, <aws-internal>",
+				},
+				cli.StringFlag{
+					Name:  "security-role",
+					Usage: "security iam role if using -security=aws-internal security",
+				},
+				cli.StringFlag{
+					Name:  "config-location",
+					Usage: "config location, must be format <location>/<environment>.tfvars",
+				},
+			},
+			Usage:  "terraform apply",
+			Action: CmdApply,
+		},
+		{
+			Name: "destroy",
+			Flags: []cli.Flag{
+				cli.BoolFlag{
+					Name:  "no-sync",
+					Usage: "Don't perform initial s3 sync",
+				},
+				cli.StringFlag{
+					Name:  "security",
+					Usage: "security provider, current options <default>, <aws-internal>",
+				},
+				cli.StringFlag{
+					Name:  "security-role",
+					Usage: "security iam role if using -security=aws-internal security",
+				},
+				cli.StringFlag{
+					Name:  "config-location",
+					Usage: "config location, must be format <location>/<environment>.tfvars",
+				},
+			},
+			Usage:  "terraform destroy",
+			Action: CmdDestroy,
+		},
+		{
+			Name: "refresh",
+			Flags: []cli.Flag{
+				cli.BoolFlag{
+					Name:  "no-sync",
+					Usage: "Don't perform initial s3 sync",
+				},
+				cli.StringFlag{
+					Name:  "security",
+					Usage: "security provider, current options <default>, <aws-internal>",
+				},
+				cli.StringFlag{
+					Name:  "security-role",
+					Usage: "security iam role if using -security=aws-internal security",
+				},
+				cli.StringFlag{
+					Name:  "config-location",
+					Usage: "config location, must be format <location>/<environment>.tfvars",
+				},
+			},
+			Usage:  "terraform refresh",
+			Action: CmdRefresh,
 		},
 		{
 			Name: "download",
@@ -76,7 +143,7 @@ func main() {
 			Action: CmdDownload,
 		},
 		{
-			Name:   "upload",
+			Name: "upload",
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:  "config-location",
@@ -90,42 +157,68 @@ func main() {
 	app.Run(os.Args)
 }
 
-var terraformCommands = map[string]TerraformCommand {
-    "plan": TerraformCommand{false, ""},
-    "apply": TerraformCommand{true, ""},
-    "refresh": TerraformCommand{true, ""},
-    "destroy": TerraformCommand{true, "-force"},
+type TerraformOperation struct {
+	command     string
+	environment string
+	config      *terraform_config.AwsConfig
+	tfVars      string
+	tfState     string
 }
 
-type TerraformCommand struct {
-	sync bool
-	extraArgs string
+func CmdPlan(c *cli.Context) {
+	operation := initialize(c, "plan")
+	CmdRun(operation)
 }
 
-func CmdRun(c *cli.Context) {
-	if len(c.Args()) != 2 {
+func CmdApply(c *cli.Context) {
+	operation := initialize(c, "apply")
+	CmdRun(operation)
+	resync(operation)
+}
+
+func CmdRefresh(c *cli.Context) {
+	operation := initialize(c, "refresh")
+	CmdRun(operation)
+	resync(operation)
+}
+
+func CmdDestroy(c *cli.Context) {
+	operation := initialize(c, "destroy")
+	CmdRun(operation)
+	resync(operation)
+}
+
+func initialize(c *cli.Context, command string) TerraformOperation {
+	if len(c.Args()) != 1 {
 		fmt.Printf("Incorrect usage\n")
-		fmt.Printf("run <terraform command> <environment>\n")
+		fmt.Printf("apply <environment>\n")
 		os.Exit(1)
 	}
-	IsTerraformProject()
 
-	terraformCommand := c.Args()[0]
-	environment := c.Args()[1]
+	fmt.Println(c.Args())
+	environment := c.Args()[0]
 
 	security.Apply(c.String("security"), c)
-	IsSupportedTerraformCommand(terraformCommand)
 
 	fmt.Println()
-	fmt.Println("Run Terraform command")
-	fmt.Println("Command:    ", bold(terraformCommand))
+	fmt.Println("Execute Terraform command")
+	fmt.Println("Command:    ", bold(command))
 	fmt.Println("Environment:", bold(environment))
 	fmt.Println()
 
 	configLocation := c.String("config-location")
 	config := terraform_config.LoadConfig(c.String("config-location"), environment)
 
-	if c.Bool("no-sync") {
+	getState(c.Bool("no-sync"), config, environment)
+
+	tfVars := terraform_config.TerraformVars(configLocation, environment)
+	tfState := terraform_config.TerraformState(environment)
+	//return TerraformOperation{environment: c.Args()[0], config: config, tfVars: tfVars, tsState: tsState}
+	return TerraformOperation{command: command, environment: environment, tfVars: tfVars, tfState: tfState, config: config}
+}
+
+func getState(skip bool, config *terraform_config.AwsConfig, environment string) {
+	if skip {
 		red("SKIPPING S3 download of current state")
 		if command.InputAffirmative() {
 			red("Skipped syncing with S3")
@@ -135,18 +228,27 @@ func CmdRun(c *cli.Context) {
 	} else {
 		DownloadState(config, environment)
 	}
+}
 
-	tfVars := terraform_config.TerraformVars(configLocation, environment)
-	tfState := terraform_config.TerraformState(environment)
-	terraformActions := terraformCommands[terraformCommand]
+func resync(operation TerraformOperation) {
+	fmt.Printf("S3 SYNC new changes\n")
+	UploadState(operation.config, operation.environment)
+}
+
+func CmdRun(operation TerraformOperation) {
 
 	// It would be great to use golang terraform so we don't have to install it separately
 	// I think we would need to use "github.com/mitchellh/cli" instead of current cli
 	cmdName := "terraform"
-	cmdArgs := []string{ terraformCommand, "-var-file", tfVars, fmt.Sprintf("-state=%s", tfState), "-var", fmt.Sprintf("environment=%s", environment) }
-	if terraformActions.extraArgs != "" {
-		cmdArgs = append(cmdArgs, terraformActions.extraArgs)
-	}
+	cmdArgs := []string{operation.command, "-var-file", operation.tfVars, fmt.Sprintf("-state=%s", operation.tfState), "-var", fmt.Sprintf("environment=%s", operation.environment)}
+	//if terraformActions.extraArgs != "" {
+	//cmdArgs = append(cmdArgs, terraformActions.extraArgs)
+	//}
+	// plan -destroy
+	//if c.Bool("destroy") {
+	//cmdArgs = append(cmdArgs, "-destroy")
+	//}
+
 	fmt.Println("---------------------------------------------")
 	Bold.Println(cmdName, strings.Join(cmdArgs, " "))
 	fmt.Println("---------------------------------------------")
@@ -154,10 +256,6 @@ func CmdRun(c *cli.Context) {
 	command.Default().Execute(cmdName, cmdArgs)
 	fmt.Println()
 	fmt.Println("---------------------------------------------")
-	if terraformActions.sync {
-		fmt.Printf("S3 SYNC new changes\n")
-		UploadState(config, environment)
-	}
 }
 
 func CmdUpload(c *cli.Context) {
@@ -239,17 +337,5 @@ func IsTerraformProject() {
 	hasTfFiles, err := file.DirectoryContainsWithExtension(".", ".tf")
 	if err != nil && !hasTfFiles {
 		command.Error("No terraform files exist", err)
-	}
-}
-
-func IsSupportedTerraformCommand(terraformCommand string) {
-	if _, ok := terraformCommands[terraformCommand]; !ok {
-		fmt.Printf("Incorrect usage\n")
-		var buffer bytes.Buffer
-		buffer.WriteString("Valid commands: ")
-		for key := range terraformCommands {
-			buffer.WriteString(fmt.Sprintf("%s ", key))
-		}
-		command.Error("Incorrect run command", errors.New(buffer.String()))
 	}
 }
