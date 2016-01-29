@@ -89,6 +89,10 @@ func main() {
 			Name: "destroy",
 			Flags: []cli.Flag{
 				cli.BoolFlag{
+					Name:  "force",
+					Usage: "Force destroy",
+				},
+				cli.BoolFlag{
 					Name:  "no-sync",
 					Usage: "Don't perform initial s3 sync",
 				},
@@ -163,10 +167,14 @@ type TerraformOperation struct {
 	config      *terraform_config.AwsConfig
 	tfVars      string
 	tfState     string
+	extraArgs   string
 }
 
 func CmdPlan(c *cli.Context) {
 	operation := initialize(c, "plan")
+	if c.Bool("destroy") {
+		operation.extraArgs = "-destroy"
+	}
 	CmdRun(operation)
 }
 
@@ -184,6 +192,9 @@ func CmdRefresh(c *cli.Context) {
 
 func CmdDestroy(c *cli.Context) {
 	operation := initialize(c, "destroy")
+	if c.Bool("force") {
+		operation.extraArgs = "-force"
+	}
 	CmdRun(operation)
 	resync(operation)
 }
@@ -241,13 +252,9 @@ func CmdRun(operation TerraformOperation) {
 	// I think we would need to use "github.com/mitchellh/cli" instead of current cli
 	cmdName := "terraform"
 	cmdArgs := []string{operation.command, "-var-file", operation.tfVars, fmt.Sprintf("-state=%s", operation.tfState), "-var", fmt.Sprintf("environment=%s", operation.environment)}
-	//if terraformActions.extraArgs != "" {
-	//cmdArgs = append(cmdArgs, terraformActions.extraArgs)
-	//}
-	// plan -destroy
-	//if c.Bool("destroy") {
-	//cmdArgs = append(cmdArgs, "-destroy")
-	//}
+	if operation.extraArgs != "" {
+		cmdArgs = append(cmdArgs, operation.extraArgs)
+	}
 
 	fmt.Println("---------------------------------------------")
 	Bold.Println(cmdName, strings.Join(cmdArgs, " "))
