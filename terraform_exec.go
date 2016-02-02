@@ -43,6 +43,10 @@ func main() {
 			Name: "plan",
 			Flags: []cli.Flag{
 				cli.BoolFlag{
+					Name:  "destroy",
+					Usage: "plan destroy",
+				},
+				cli.BoolFlag{
 					Name:  "no-sync",
 					Usage: "Don't perform initial s3 sync",
 				},
@@ -192,9 +196,15 @@ func CmdRefresh(c *cli.Context) {
 
 func CmdDestroy(c *cli.Context) {
 	operation := initialize(c, "destroy")
-	if c.Bool("force") {
-		operation.extraArgs = "-force"
+	operation.extraArgs = "-force"
+	if !c.Bool("force") {
+		color.Red("Are you sure you want to destroy your environment?")
+		if !command.InputAffirmative() {
+			color.Cyan("Destroy Cancelled")
+			os.Exit(0)
+		}
 	}
+	color.Cyan("Destroying environment")
 	CmdRun(operation)
 	resync(operation)
 }
@@ -224,15 +234,15 @@ func initialize(c *cli.Context, command string) TerraformOperation {
 
 	tfVars := terraform_config.TerraformVars(configLocation, environment)
 	tfState := terraform_config.TerraformState(environment)
-	//return TerraformOperation{environment: c.Args()[0], config: config, tfVars: tfVars, tsState: tsState}
+
 	return TerraformOperation{command: command, environment: environment, tfVars: tfVars, tfState: tfState, config: config}
 }
 
 func getState(skip bool, config *terraform_config.AwsConfig, environment string) {
 	if skip {
-		red("SKIPPING S3 download of current state")
+		color.Red("Warning: skipping S3 download of current state")
 		if command.InputAffirmative() {
-			red("Skipped syncing with S3")
+			color.Cyan("Skipped syncing with S3")
 		} else {
 			DownloadState(config, environment)
 		}
