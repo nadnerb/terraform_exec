@@ -22,9 +22,9 @@ terraform_exec --help
 By default you will run `terraform_exec` within an existing terraform project. It will sync local state with s3 similar to atlas, additionally supporting
 multiple 'environments'.
 
-The run command allows running normal terraform commands such as `plan`, `apply`, `refresh` and `destroy`.
+terraform_exec wraps normal terraform commands such as `plan`, `apply`, `refresh` and `destroy`.
 
-e.g `terraform_exec run plan staging`
+e.g `terraform_exec plan staging`
 
 ### Configuration
 
@@ -43,7 +43,7 @@ Out of the box, `terraform_exec` will look for AWS credentials set in environmen
 via the machines IAM role are supported:
 
 ```
-terraform_exec run plan staging --security=aws-internal --security-role=your-iam-role
+terraform_exec plan staging --security=aws-internal --security-role=your-iam-role
 ```
 
 Use `terraform_exec run --help` for more details.
@@ -84,7 +84,7 @@ $ go get github.com/stretchr/testify/assert
 
 ### TODO
 
-* use terraform go project (most likely need to change to its cli)
-* improve this readme!!
+* improve documentation
+* improve cli output
 * remove unnessessary s3_Key variable
-* only warn for inital sync if new project, fail otherwise
+* see github issues

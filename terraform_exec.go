@@ -6,19 +6,12 @@ import (
 	"strings"
 
 	"github.com/codegangsta/cli"
-	"github.com/fatih/color"
 	"github.com/nadnerb/cli_command"
 	"github.com/nadnerb/terraform_config"
 	"github.com/nadnerb/terraform_exec/file"
 	"github.com/nadnerb/terraform_exec/security"
 	"github.com/nadnerb/terraform_exec/sync"
 )
-
-var cyan = color.New(color.FgCyan).SprintFunc()
-var Bold = color.New(color.FgWhite, color.Bold)
-var bold = Bold.SprintFunc()
-var green = color.New(color.FgGreen).SprintFunc()
-var red = color.New(color.FgRed).SprintFunc()
 
 func main() {
 
@@ -179,37 +172,41 @@ func CmdPlan(c *cli.Context) {
 	if c.Bool("destroy") {
 		operation.extraArgs = "-destroy"
 	}
-	CmdRun(operation)
+	run(operation)
 }
 
 func CmdApply(c *cli.Context) {
 	operation := initialize(c, "apply")
-	CmdRun(operation)
+	run(operation)
 	resync(operation)
 }
 
 func CmdRefresh(c *cli.Context) {
 	operation := initialize(c, "refresh")
-	CmdRun(operation)
+	run(operation)
 	resync(operation)
 }
 
 func CmdDestroy(c *cli.Context) {
 	operation := initialize(c, "destroy")
-	operation.extraArgs = "-force"
 	if !c.Bool("force") {
-		color.Red("Are you sure you want to destroy your environment?")
-		if !command.InputAffirmative() {
-			color.Cyan("Destroy Cancelled")
+		fmt.Println(command.Red("Are you sure you want to destroy your environment?"))
+		fmt.Println()
+		if !command.InputAreYouSure() {
+			fmt.Println(command.Cyan("Terraform destroy cancelled"))
+			fmt.Println()
 			os.Exit(0)
 		}
 	}
-	color.Cyan("Destroying environment")
-	CmdRun(operation)
+	fmt.Println(command.Cyan("Destroying environment"))
+	fmt.Println()
+
+	operation.extraArgs = "-force"
+	run(operation)
 	resync(operation)
 }
 
-func initialize(c *cli.Context, command string) TerraformOperation {
+func initialize(c *cli.Context, terraformCommand string) TerraformOperation {
 	if len(c.Args()) != 1 {
 		fmt.Printf("Incorrect usage\n")
 		fmt.Printf("apply <environment>\n")
@@ -223,8 +220,8 @@ func initialize(c *cli.Context, command string) TerraformOperation {
 
 	fmt.Println()
 	fmt.Println("Execute Terraform command")
-	fmt.Println("Command:    ", bold(command))
-	fmt.Println("Environment:", bold(environment))
+	fmt.Println("Command:    ", command.Bold(terraformCommand))
+	fmt.Println("Environment:", command.Bold(environment))
 	fmt.Println()
 
 	configLocation := c.String("config-location")
@@ -235,14 +232,16 @@ func initialize(c *cli.Context, command string) TerraformOperation {
 	tfVars := terraform_config.TerraformVars(configLocation, environment)
 	tfState := terraform_config.TerraformState(environment)
 
-	return TerraformOperation{command: command, environment: environment, tfVars: tfVars, tfState: tfState, config: config}
+	return TerraformOperation{command: terraformCommand, environment: environment, tfVars: tfVars, tfState: tfState, config: config}
 }
 
 func getState(skip bool, config *terraform_config.AwsConfig, environment string) {
 	if skip {
-		color.Red("Warning: skipping S3 download of current state")
-		if command.InputAffirmative() {
-			color.Cyan("Skipped syncing with S3")
+		fmt.Printf("%s\n", command.Red("Warning: skipping S3 download of current state"))
+		if command.InputAreYouSure() {
+			fmt.Println()
+			fmt.Printf(command.Cyan("Skipped syncing with S3\n"))
+			fmt.Println()
 		} else {
 			DownloadState(config, environment)
 		}
@@ -252,11 +251,11 @@ func getState(skip bool, config *terraform_config.AwsConfig, environment string)
 }
 
 func resync(operation TerraformOperation) {
-	fmt.Printf("S3 SYNC new changes\n")
+	fmt.Printf("%s\n", command.Green("S3 SYNC new changes"))
 	UploadState(operation.config, operation.environment)
 }
 
-func CmdRun(operation TerraformOperation) {
+func run(operation TerraformOperation) {
 
 	// It would be great to use golang terraform so we don't have to install it separately
 	// I think we would need to use "github.com/mitchellh/cli" instead of current cli
@@ -267,7 +266,7 @@ func CmdRun(operation TerraformOperation) {
 	}
 
 	fmt.Println("---------------------------------------------")
-	Bold.Println(cmdName, strings.Join(cmdArgs, " "))
+	fmt.Println(command.Bold(cmdName), command.Bold(strings.Join(cmdArgs, " ")))
 	fmt.Println("---------------------------------------------")
 	fmt.Println()
 	command.Default().Execute(cmdName, cmdArgs)
@@ -287,28 +286,28 @@ func CmdUpload(c *cli.Context) {
 
 	fmt.Println()
 	fmt.Println("Upload Terraform state")
-	fmt.Println("Environment:", bold(environment))
+	fmt.Println("Environment:", command.Bold(environment))
 	fmt.Println()
 	fmt.Printf("Upload current project state to s3\n")
 
-	if command.InputAffirmative() {
+	if command.InputAreYouSure() {
 		UploadState(config, environment)
 	} else {
-		color.Red("Aborted")
+		fmt.Println(command.Red("Aborted"))
 	}
 }
 
 func UploadState(config *terraform_config.AwsConfig, environment string) {
 	tfState := terraform_config.TerraformState(environment)
 	s3Key := S3Key(config.S3_key, environment)
-	fmt.Printf("Uploading project state: %s to: %s/%s\n", green(tfState), green(config.S3_bucket), green(s3Key))
+	fmt.Printf("Uploading project state: %s to: %s/%s\n", command.Green(tfState), command.Green(config.S3_bucket), command.Green(s3Key))
 
 	err := sync.Upload(config.Aws_region, config.S3_bucket, s3Key, tfState)
 	fmt.Println()
 	if err != nil {
 		command.Error("Failed to upload", err)
 	} else {
-		color.Green("Uploaded successfully to S3")
+		fmt.Println(command.Green("Uploaded successfully to S3"))
 		fmt.Println()
 	}
 }
@@ -322,7 +321,7 @@ func CmdDownload(c *cli.Context) {
 	environment := c.Args()[0]
 	fmt.Println()
 	fmt.Println("Download Terraform state")
-	fmt.Println("Environment:", bold(environment))
+	fmt.Println("Environment:", command.Bold(environment))
 	fmt.Println()
 	config := terraform_config.LoadConfig(c.String("config-location"), environment)
 	DownloadState(config, environment)
@@ -334,16 +333,20 @@ func DownloadState(config *terraform_config.AwsConfig, environment string) {
 
 	tfState := terraform_config.TerraformState(environment)
 	s3Key := S3Key(config.S3_key, environment)
-	fmt.Printf("Downloading project state: %s/%s to: %s\n", cyan(config.S3_bucket), cyan(s3Key), cyan(tfState))
+	fmt.Printf("Downloading project state: %s/%s to: %s\n", command.Cyan(config.S3_bucket), command.Cyan(s3Key), command.Cyan(tfState))
 
 	err := sync.Download(config.Aws_region, config.S3_bucket, s3Key, tfState)
 	fmt.Println()
 	if err != nil {
 		command.Warn("Failed to download", err)
+		if !command.InputAffirmative("Continue without using syncronised state?") {
+			fmt.Println(command.Cyan("Operation cancelled"))
+			os.Exit(0)
+		}
 	} else {
-		color.Green("Downloaded successfully from S3")
-		fmt.Println()
+		fmt.Println(command.Green("Downloaded successfully from S3"))
 	}
+	fmt.Println()
 }
 
 func S3Key(keyName string, environment string) string {
