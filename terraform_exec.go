@@ -16,18 +16,34 @@ import (
 func main() {
 
 	app := cli.NewApp()
-	app.Name = "Terraform exec"
-	app.Usage = "Execute terraform commands across environments maintaining state in s3\nDefault project layout\n./<project>\n./config/<environment>"
+	app.Name = ProjectName
+	app.Usage = Usage
+	app.Version = Version
 
 	app.Flags = []cli.Flag{
 		cli.BoolFlag{
 			Name:  "verbose",
-			Usage: "Show more output",
+			Usage: "show more output",
 		},
 		cli.BoolFlag{
 			Name:  "e, env",
-			Usage: "Load AWS credentials from environment",
+			Usage: "load AWS credentials from environment",
 		},
+		cli.BoolFlag{
+			Name:  "commit",
+			Usage: "compiled git commit",
+		},
+	}
+
+	app.Action = func(ctx *cli.Context) {
+		args := ctx.Args()
+		if ctx.Bool("commit") {
+			CommitMessage()
+		} else if args.Present() {
+			cli.ShowCommandHelp(ctx, args.First())
+		} else {
+			cli.ShowAppHelp(ctx)
+		}
 	}
 
 	// Commands
