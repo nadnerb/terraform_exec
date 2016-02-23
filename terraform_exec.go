@@ -149,6 +149,29 @@ func main() {
 			Action: CmdRefresh,
 		},
 		{
+			Name: "taint",
+			Flags: []cli.Flag{
+				cli.BoolFlag{
+					Name:  "no-sync",
+					Usage: "Don't perform initial s3 sync",
+				},
+				cli.StringFlag{
+					Name:  "security",
+					Usage: "security provider, current options <default>, <aws-internal>",
+				},
+				cli.StringFlag{
+					Name:  "security-role",
+					Usage: "security iam role if using -security=aws-internal security",
+				},
+				cli.StringFlag{
+					Name:  "config-location",
+					Usage: "config location, must be format <location>/<environment>.tfvars",
+				},
+			},
+			Usage:  "terraform taint",
+			Action: CmdTaint,
+		},
+		{
 			Name: "download",
 			Flags: []cli.Flag{
 				cli.StringFlag{
@@ -197,6 +220,13 @@ func CmdApply(c *cli.Context) {
 	resync(operation)
 }
 
+func CmdTaint(c *cli.Context) {
+	operation := initialize(c, "taint")
+	operation.extraArgs = strings.Join(c.Args()[1:], " ")
+	run(operation)
+	resync(operation)
+}
+
 func CmdRefresh(c *cli.Context) {
 	operation := initialize(c, "refresh")
 	run(operation)
@@ -223,7 +253,7 @@ func CmdDestroy(c *cli.Context) {
 }
 
 func initialize(c *cli.Context, terraformCommand string) TerraformOperation {
-	if len(c.Args()) != 1 {
+	if len(c.Args()) < 1 {
 		fmt.Printf("Incorrect usage\n")
 		fmt.Printf("apply <environment>\n")
 		os.Exit(1)

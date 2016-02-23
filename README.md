@@ -5,7 +5,7 @@ Terraform wrapper that allows terraform projects to have multiple environments, 
 
 For example terraform_exec allows a terraform elasticsearch project to have staging and production environments in multiple aws regions.
 
-## Usage:
+## Installation:
 
 First you need to install [terraform](https://terraform.io)
 
@@ -17,12 +17,12 @@ go install github.com/nadnerb/terraform_exec
 terraform_exec --help
 ```
 
-### terraform_exec run
+## terraform_exec
 
-By default you will run `terraform_exec` within an existing terraform project. It will sync local state with s3 similar to atlas, additionally supporting
+By default you will run `terraform_exec` within an existing terraform project. It will sync local state with s3, additionally supporting
 multiple 'environments'.
 
-terraform_exec wraps normal terraform commands such as `plan`, `apply`, `refresh` and `destroy`.
+terraform_exec wraps normal terraform commands such as `plan`, `apply`, `refresh`, `taint` and `destroy`.
 
 e.g `terraform_exec plan staging`
 
@@ -36,6 +36,24 @@ aws_region="ap-southeast-2"
 s3_bucket="a-bucket"
 s3_key="an-s3-key"
 ```
+
+## Examples
+
+### apply
+
+`terraform_exec apply dc1`
+
+Underlying terraform operation:
+
+`terraform plan -var-file ./config/dc1.tfvars -state=./tfstate/dc1/terraform.tfstate -var environment=dc0`
+
+### taint
+
+`terraform_exec taint dc2 aws_launch_configuration.elasticsearch --config-location=/tmp/config/elasticsearch`
+
+Underlying terraform operation:
+
+`terraform taint -var-file /tmp/config/elasticsearch/dc2.tfvars -state=./tfstate/dc2/terraform.tfstate -var environment=dc2 aws_launch_configuration.elasticsearch`
 
 #### AWS security
 
