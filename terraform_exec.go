@@ -198,12 +198,13 @@ func main() {
 }
 
 type TerraformOperation struct {
-	command     string
-	environment string
-	config      *terraform_config.AwsConfig
-	tfVars      string
-	tfState     string
-	extraArgs   string
+	command			string
+	environment		string
+	config          *terraform_config.AwsConfig
+	configLocation  string
+	tfVars			string
+	tfState			string
+	extraArgs		string
 }
 
 func CmdPlan(c *cli.Context) {
@@ -278,7 +279,14 @@ func initialize(c *cli.Context, terraformCommand string) TerraformOperation {
 	tfVars := terraform_config.TerraformVars(configLocation, environment)
 	tfState := terraform_config.TerraformState(environment)
 
-	return TerraformOperation{command: terraformCommand, environment: environment, tfVars: tfVars, tfState: tfState, config: config}
+	return TerraformOperation{
+		command:        terraformCommand,
+		environment:    environment,
+		tfVars:         tfVars,
+		tfState:        tfState,
+		config:         config,
+		configLocation: configLocation,
+	}
 }
 
 func getState(skip bool, config *terraform_config.AwsConfig, environment string) {
@@ -306,7 +314,7 @@ func run(operation TerraformOperation) {
 	// It would be great to use golang terraform so we don't have to install it separately
 	// I think we would need to use "github.com/mitchellh/cli" instead of current cli
 	cmdName := "terraform"
-	cmdArgs := []string{operation.command, "-var-file", operation.tfVars, fmt.Sprintf("-state=%s", operation.tfState), "-var", fmt.Sprintf("environment=%s", operation.environment)}
+	cmdArgs := []string{operation.command, "-var-file", operation.tfVars, fmt.Sprintf("-state=%s", operation.tfState), "-var", fmt.Sprintf("environment=%s", operation.environment), "-var", fmt.Sprintf("config_location=%s", operation.configLocation)}
 	if operation.extraArgs != "" {
 		cmdArgs = append(cmdArgs, operation.extraArgs)
 	}
