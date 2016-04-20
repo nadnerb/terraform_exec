@@ -1,5 +1,6 @@
 install:
 	go get ./...
+	go get github.com/stretchr/testify/assert
 	go install
 
 build:

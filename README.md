@@ -39,6 +39,8 @@ s3_bucket="a-bucket"
 s3_key="an-s3-key"
 ```
 
+The default config directory location can be overriden using the `--config-location='/tmp/blah/'` flag.
+
 ## Examples
 
 ### apply
