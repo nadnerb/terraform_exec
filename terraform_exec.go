@@ -256,7 +256,7 @@ func CmdDestroy(c *cli.Context) {
 func initialize(c *cli.Context, terraformCommand string) TerraformOperation {
 	if len(c.Args()) < 1 {
 		fmt.Printf("Incorrect usage\n")
-		fmt.Printf("apply <environment>\n")
+		fmt.Printf("%s <environment>\n", terraformCommand)
 		os.Exit(1)
 	}
 
@@ -310,9 +310,6 @@ func resync(operation TerraformOperation) {
 }
 
 func run(operation TerraformOperation) {
-
-	// It would be great to use golang terraform so we don't have to install it separately
-	// I think we would need to use "github.com/mitchellh/cli" instead of current cli
 	cmdName := "terraform"
 	cmdArgs := []string{operation.command, "-var-file", operation.tfVars, fmt.Sprintf("-state=%s", operation.tfState), "-var", fmt.Sprintf("environment=%s", operation.environment), "-var", fmt.Sprintf("config_location=%s", operation.configLocation)}
 	if operation.extraArgs != "" {

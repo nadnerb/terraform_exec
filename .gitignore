@@ -1,2 +1,3 @@
 terraform_exec
+terraform_exec_*
 config
