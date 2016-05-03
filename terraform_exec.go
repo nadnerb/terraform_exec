@@ -172,6 +172,29 @@ func main() {
 			Action: CmdTaint,
 		},
 		{
+			Name: "untaint",
+			Flags: []cli.Flag{
+				cli.BoolFlag{
+					Name:  "no-sync",
+					Usage: "Don't perform initial s3 sync",
+				},
+				cli.StringFlag{
+					Name:  "security",
+					Usage: "security provider, current options <default>, <aws-internal>",
+				},
+				cli.StringFlag{
+					Name:  "security-role",
+					Usage: "security iam role if using -security=aws-internal security",
+				},
+				cli.StringFlag{
+					Name:  "config-location",
+					Usage: "config location, must be format <location>/<environment>.tfvars",
+				},
+			},
+			Usage:  "terraform taint",
+			Action: CmdUntaint,
+		},
+		{
 			Name: "download",
 			Flags: []cli.Flag{
 				cli.StringFlag{
@@ -223,6 +246,13 @@ func CmdApply(c *cli.Context) {
 
 func CmdTaint(c *cli.Context) {
 	operation := initialize(c, "taint")
+	operation.extraArgs = strings.Join(c.Args()[1:], " ")
+	run(operation)
+	resync(operation)
+}
+
+func CmdUntaint(c *cli.Context) {
+	operation := initialize(c, "untaint")
 	operation.extraArgs = strings.Join(c.Args()[1:], " ")
 	run(operation)
 	resync(operation)
