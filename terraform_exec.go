@@ -3,12 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/codegangsta/cli"
 	"github.com/nadnerb/cli_command"
 	"github.com/nadnerb/terraform_config"
-	"github.com/nadnerb/terraform_exec/file"
 	"github.com/nadnerb/terraform_exec/security"
 	"github.com/nadnerb/terraform_exec/sync"
 )
@@ -156,6 +156,10 @@ func main() {
 					Usage: "Don't perform initial s3 sync",
 				},
 				cli.StringFlag{
+					Name:  "module",
+					Usage: "tainted module path",
+				},
+				cli.StringFlag{
 					Name:  "security",
 					Usage: "security provider, current options <default>, <aws-internal>",
 				},
@@ -179,6 +183,10 @@ func main() {
 					Usage: "Don't perform initial s3 sync",
 				},
 				cli.StringFlag{
+					Name:  "module",
+					Usage: "tainted module path",
+				},
+				cli.StringFlag{
 					Name:  "security",
 					Usage: "security provider, current options <default>, <aws-internal>",
 				},
@@ -191,7 +199,7 @@ func main() {
 					Usage: "config location, must be format <location>/<environment>.tfvars",
 				},
 			},
-			Usage:  "terraform taint",
+			Usage:  "terraform untaint",
 			Action: CmdUntaint,
 		},
 		{
@@ -221,14 +229,17 @@ func main() {
 }
 
 type TerraformOperation struct {
-	command			string
-	environment		string
-	config          *terraform_config.AwsConfig
-	configLocation  string
-	tfVars			string
-	tfState			string
-	extraArgs		string
+	command        string
+	environment    string
+	config         *terraform_config.AwsConfig
+	configLocation string
+	tfVars         string
+	tfState        string
+	extraArgs      string
+	args           []string
 }
+
+type action func(c *cli.Context)
 
 func CmdPlan(c *cli.Context) {
 	operation := initialize(c, "plan")
@@ -316,6 +327,7 @@ func initialize(c *cli.Context, terraformCommand string) TerraformOperation {
 		tfState:        tfState,
 		config:         config,
 		configLocation: configLocation,
+		args:           os.Args[2:],
 	}
 }
 
@@ -341,10 +353,7 @@ func resync(operation TerraformOperation) {
 
 func run(operation TerraformOperation) {
 	cmdName := "terraform"
-	cmdArgs := []string{operation.command, "-var-file", operation.tfVars, fmt.Sprintf("-state=%s", operation.tfState), "-var", fmt.Sprintf("environment=%s", operation.environment), "-var", fmt.Sprintf("config_location=%s", operation.configLocation)}
-	if operation.extraArgs != "" {
-		cmdArgs = append(cmdArgs, operation.extraArgs)
-	}
+	cmdArgs := commandArgs(operation)
 
 	fmt.Println("---------------------------------------------")
 	fmt.Println(command.Bold(cmdName), command.Bold(strings.Join(cmdArgs, " ")))
@@ -434,9 +443,38 @@ func S3Key(keyName string, environment string) string {
 	return fmt.Sprintf("%s/tfstate/%s/terraform.tfstate", keyName, environment)
 }
 
-func IsTerraformProject() {
-	hasTfFiles, err := file.DirectoryContainsWithExtension(".", ".tf")
-	if err != nil && !hasTfFiles {
-		command.Error("No terraform files exist", err)
+func terraformArgs(arguments []string) string {
+	args := filter(arguments, func(s string) bool {
+		match, _ := regexp.MatchString("^-([a-z]+).*", s)
+		return match
+	})
+	return strings.Join(args, " ")
+}
+
+func filter(s []string, fn func(string) bool) []string {
+	var p []string // == nil
+	for _, v := range s {
+		if fn(v) {
+			p = append(p, v)
+		}
 	}
+	return p
+}
+
+func commandArgs(operation TerraformOperation) []string {
+	cmdArgs := []string{
+		operation.command,
+		"-var-file", operation.tfVars,
+		fmt.Sprintf("-state=%s", operation.tfState),
+		"-var", fmt.Sprintf("environment=%s", operation.environment),
+		"-var", fmt.Sprintf("config_location=%s", operation.configLocation),
+	}
+	args := terraformArgs(operation.args)
+	if args != "" {
+		cmdArgs = append(cmdArgs, args)
+	}
+	if operation.extraArgs != "" {
+		cmdArgs = append(cmdArgs, operation.extraArgs)
+	}
+	return cmdArgs
 }
