@@ -25,5 +25,5 @@ func CommitMessage() {
 }
 
 // The version number.
-const Version = "0.0.5"
+const Version = "0.0.6"
 

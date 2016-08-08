@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 	"github.com/nadnerb/cli_command"
 	"github.com/nadnerb/terraform_config"
 	"github.com/nadnerb/terraform_exec/security"
@@ -35,7 +35,7 @@ func main() {
 		},
 	}
 
-	app.Action = func(ctx *cli.Context) {
+	app.Action = func(ctx *cli.Context) error {
 		args := ctx.Args()
 		if ctx.Bool("commit") {
 			CommitMessage()
@@ -44,6 +44,7 @@ func main() {
 		} else {
 			cli.ShowAppHelp(ctx)
 		}
+		return nil
 	}
 
 	// Commands
@@ -239,43 +240,46 @@ type TerraformOperation struct {
 	args           []string
 }
 
-type action func(c *cli.Context)
-
-func CmdPlan(c *cli.Context) {
+func CmdPlan(c *cli.Context) error {
 	operation := initialize(c, "plan")
 	if c.Bool("destroy") {
 		operation.extraArgs = "-destroy"
 	}
 	run(operation)
+	return nil
 }
 
-func CmdApply(c *cli.Context) {
+func CmdApply(c *cli.Context) error {
 	operation := initialize(c, "apply")
 	run(operation)
 	resync(operation)
+	return nil
 }
 
-func CmdTaint(c *cli.Context) {
+func CmdTaint(c *cli.Context) error {
 	operation := initialize(c, "taint")
 	operation.extraArgs = strings.Join(c.Args()[1:], " ")
 	run(operation)
 	resync(operation)
+	return nil
 }
 
-func CmdUntaint(c *cli.Context) {
+func CmdUntaint(c *cli.Context) error {
 	operation := initialize(c, "untaint")
 	operation.extraArgs = strings.Join(c.Args()[1:], " ")
 	run(operation)
 	resync(operation)
+	return nil
 }
 
-func CmdRefresh(c *cli.Context) {
+func CmdRefresh(c *cli.Context) error {
 	operation := initialize(c, "refresh")
 	run(operation)
 	resync(operation)
+	return nil
 }
 
-func CmdDestroy(c *cli.Context) {
+func CmdDestroy(c *cli.Context) error {
 	operation := initialize(c, "destroy")
 	if !c.Bool("force") {
 		fmt.Println(command.Red("Are you sure you want to destroy your environment?"))
@@ -292,6 +296,7 @@ func CmdDestroy(c *cli.Context) {
 	operation.extraArgs = "-force"
 	run(operation)
 	resync(operation)
+	return nil
 }
 
 func initialize(c *cli.Context, terraformCommand string) TerraformOperation {

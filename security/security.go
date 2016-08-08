@@ -1,7 +1,7 @@
 package security
 
 import (
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 )
 
 var providers map[string]ProviderFactory

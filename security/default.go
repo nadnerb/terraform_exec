@@ -4,7 +4,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 )
 
 type DefaultProvider struct {

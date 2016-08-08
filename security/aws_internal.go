@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/codegangsta/cli"
+	"github.com/urfave/cli"
 )
 
 type AwsInternalProvider struct {
