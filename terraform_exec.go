@@ -232,10 +232,7 @@ func main() {
 type TerraformOperation struct {
 	command        string
 	environment    string
-	config         *terraform_config.AwsConfig
-	configLocation string
-	tfVars         string
-	tfState        string
+	config         *terraform_config.TerraformConfig
 	extraArgs      string
 	args           []string
 }
@@ -317,26 +314,20 @@ func initialize(c *cli.Context, terraformCommand string) TerraformOperation {
 	fmt.Println("Environment:", command.Bold(environment))
 	fmt.Println()
 
-	configLocation := c.String("config-location")
-	config := terraform_config.LoadConfig(c.String("config-location"), environment)
+  configLocation := c.String("config-location")
+	config := terraform_config.LoadConfig(configLocation, environment)
 
 	getState(c.Bool("no-sync"), config, environment)
-
-	tfVars := terraform_config.TerraformVars(configLocation, environment)
-	tfState := terraform_config.TerraformState(environment)
 
 	return TerraformOperation{
 		command:        terraformCommand,
 		environment:    environment,
-		tfVars:         tfVars,
-		tfState:        tfState,
 		config:         config,
-		configLocation: configLocation,
 		args:           os.Args[2:],
 	}
 }
 
-func getState(skip bool, config *terraform_config.AwsConfig, environment string) {
+func getState(skip bool, config *terraform_config.TerraformConfig, environment string) {
 	if skip {
 		fmt.Printf("%s\n", command.Red("Warning: skipping S3 download of current state"))
 		if command.InputAreYouSure() {
@@ -392,8 +383,8 @@ func CmdUpload(c *cli.Context) {
 	}
 }
 
-func UploadState(config *terraform_config.AwsConfig, environment string) {
-	tfState := terraform_config.TerraformState(environment)
+func UploadState(config *terraform_config.TerraformConfig, environment string) {
+	tfState := config.State_path
 	s3Key := S3Key(config.S3_key, environment)
 	fmt.Printf("Uploading project state: %s to: %s/%s\n", command.Green(tfState), command.Green(config.S3_bucket), command.Green(s3Key))
 
@@ -422,11 +413,11 @@ func CmdDownload(c *cli.Context) {
 	DownloadState(config, environment)
 }
 
-func DownloadState(config *terraform_config.AwsConfig, environment string) {
+func DownloadState(config *terraform_config.TerraformConfig, environment string) {
 
 	fmt.Println("Syncing project state with S3")
 
-	tfState := terraform_config.TerraformState(environment)
+	tfState := config.State_path
 	s3Key := S3Key(config.S3_key, environment)
 	fmt.Printf("Downloading project state: %s/%s to: %s\n", command.Cyan(config.S3_bucket), command.Cyan(s3Key), command.Cyan(tfState))
 
@@ -469,10 +460,10 @@ func filter(s []string, fn func(string) bool) []string {
 func commandArgs(operation TerraformOperation) []string {
 	cmdArgs := []string{
 		operation.command,
-		"-var-file", operation.tfVars,
-		fmt.Sprintf("-state=%s", operation.tfState),
+		"-var-file", operation.config.Tf_vars,
+		fmt.Sprintf("-state=%s", operation.config.State_path),
 		"-var", fmt.Sprintf("environment=%s", operation.environment),
-		"-var", fmt.Sprintf("config_location=%s", operation.configLocation),
+		"-var", fmt.Sprintf("config_location=%s", operation.config.Config_path),
 	}
 	args := terraformArgs(operation.args)
 	if args != "" {
