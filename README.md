@@ -1,9 +1,17 @@
 terraform_exec
 =============
 
+# PREFACE
+
+The need for `terraform exec` has passed. Terraform now supports 'environments', called [workspaces](https://www.terraform.io/docs/state/workspaces.html).
+
+It also supports [remote backends](https://www.terraform.io/docs/state/workspaces.html) so the s3 sync feature of `terraform exec` is obsolete.
+
 [![Build Status](https://travis-ci.org/nadnerb/terraform_exec.svg?branch=master)](https://travis-ci.org/nadnerb/terraform_exec)
 
-Terraform wrapper that allows terraform projects to have multiple environments, synced to S3.
+## Intent:
+
+A Terraform wrapper that allows terraform projects to have multiple environments, synced to S3.
 
 For example terraform_exec allows a terraform elasticsearch project to have staging and production environments in multiple aws regions.
 
